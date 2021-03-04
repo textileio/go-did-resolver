@@ -41,12 +41,12 @@ func TestExpandEd25519Key(t *testing.T) {
 	var expected resolver.Document
 	err = json.Unmarshal(byteValue, &expected)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	observed, err := ExpandEd25519Key(publicKeyBytes, id)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	if !reflect.DeepEqual(observed, &expected) {
@@ -78,12 +78,12 @@ func TestExpandSecp256k1Key(t *testing.T) {
 	var expected resolver.Document
 	err = json.Unmarshal(byteValue, &expected)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	observed, err := ExpandSecp256k1Key(publicKeyBytes, id)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	if !reflect.DeepEqual(observed, &expected) {
@@ -93,17 +93,16 @@ func TestExpandSecp256k1Key(t *testing.T) {
 
 func TestEd25519KeyResolver(t *testing.T) {
 	id := "did:key:z6MktvqCyLxTsXUH1tUZncNdVeEZ7hNh7npPRbUU27GTrYb8"
-	// TODO: Carson's local random did:
 	// id := "did:key:z6Mkg9cRA65MvVbNdZCMpiqiFiWD8guY9oRGHeeC3J1qsCk5"
 
 	parsed, err := did.Parse(id)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	r := New()
 	observed, err := r.Resolve(id, parsed, r)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	byteValue, err := ioutil.ReadFile("testdata/ed25519.json")
 	if err != nil {
@@ -112,7 +111,7 @@ func TestEd25519KeyResolver(t *testing.T) {
 	var expected resolver.Document
 	err = json.Unmarshal(byteValue, &expected)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	if !reflect.DeepEqual(observed, &expected) {
@@ -125,12 +124,12 @@ func TestSecp256k1KeyResolver(t *testing.T) {
 
 	parsed, err := did.Parse(id)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	r := New()
 	observed, err := r.Resolve(id, parsed, r)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	byteValue, err := ioutil.ReadFile("testdata/secp256k1.json")
 	if err != nil {
@@ -139,7 +138,7 @@ func TestSecp256k1KeyResolver(t *testing.T) {
 	var expected resolver.Document
 	err = json.Unmarshal(byteValue, &expected)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	if !reflect.DeepEqual(observed, &expected) {
@@ -152,7 +151,7 @@ func TestUnknownMethod(t *testing.T) {
 
 	parsed, err := did.Parse(id)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	r := New()
 	_, err = r.Resolve(id, parsed, r)
@@ -199,7 +198,6 @@ func TestInvalidMultibase(t *testing.T) {
 	}
 	r := New()
 	_, err = r.Resolve(id, parsed, r)
-	// We don't support "x25519-pub" keys directly
 	if err == nil || err.Error() != "selected encoding not supported" {
 		t.Error("expected Resolve to return error")
 	}
@@ -214,7 +212,6 @@ func TestInvalidVarint(t *testing.T) {
 	}
 	r := New()
 	_, err = r.Resolve(id, parsed, r)
-	// We don't support "x25519-pub" keys directly
 	if err == nil || err.Error() != "varints larger than uint63 not supported" {
 		t.Error("expected Resolve to return error")
 	}

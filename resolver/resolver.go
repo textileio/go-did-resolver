@@ -13,7 +13,7 @@ import (
 
 // Document is a did document that describes a did subject.
 // See https://www.w3.org/TR/did-core/#dfn-did-documents.
-// We include some non-standard keys here for compatability reasons
+// TODO: Should we include the non-standard publicKey field for compatability reasons?
 // See https://w3c.github.io/did-spec-registries/#publickey
 type Document struct {
 	Context            []string             `json:"@context"` // https://w3id.org/did/v1
@@ -60,11 +60,11 @@ type ResolutionOptions struct {
 
 // ResolutionMetadata defined a metadata structure consisting of values relating to the results of the did resolution process.
 // See https://w3c.github.io/did-core/#did-resolution-metadata
-// See https://w3c.github.io/did-spec-registries/#did-resolution-metadata
+// See https://w3c.github.io/did-spec-registries/#did-resolution-metadata (possibly outdated)
 // ContentType indicates the media type of the returned did document stream.
 // This property must not be present if the resolve function was called.
 // The error code from the resolution process. This property is required when there is an error in the resolution process.
-// Curret possible values include: "invalid-did", "invalid-did-url", "not-found", "deactivated", "unsupported-did-method", "representation-not-supported"
+// Current common error values include: "invalidDid", "notFound", "representationNotSupported"
 type ResolutionMetadata struct {
 	ContentType string `json:"content-type,omitempty"`
 	Error       string `json:"error,omitempty"`
@@ -157,7 +157,7 @@ func (r Registry) Parse(did string) (*parse.DID, error) {
 func (r Registry) Resolve(did string, resolutionOptions *ResolutionOptions) (ResolutionMetadata, *Document, DocumentMetadata, error) {
 	parsed, err := r.Parse(did)
 	if err != nil {
-		return ResolutionMetadata{Error: "invalid-did-url"}, nil, DocumentMetadata{}, err
+		return ResolutionMetadata{Error: "invalidDid"}, nil, DocumentMetadata{}, err
 	}
 	resolver, ok := r.registry[parsed.Method]
 	var doc *Document
@@ -170,12 +170,12 @@ func (r Registry) Resolve(did string, resolutionOptions *ResolutionOptions) (Res
 			doc, err = resolver.Resolve(parsed.String(), parsed, resolver)
 		}
 		if err != nil {
-			return ResolutionMetadata{Error: "invalid-did"}, nil, DocumentMetadata{}, err
+			return ResolutionMetadata{Error: "invalidDid"}, nil, DocumentMetadata{}, err
 		}
 		if doc == nil {
-			return ResolutionMetadata{Error: "not-found"}, nil, DocumentMetadata{}, fmt.Errorf("resolver returned nil for: '%s'", parsed.String())
+			return ResolutionMetadata{Error: "notFound"}, nil, DocumentMetadata{}, fmt.Errorf("resolver returned nil for: '%s'", parsed.String())
 		}
 		return ResolutionMetadata{}, doc, DocumentMetadata{}, nil
 	}
-	return ResolutionMetadata{Error: "invalid-did-url"}, nil, DocumentMetadata{}, fmt.Errorf("unknown did method: '%s'", parsed.Method)
+	return ResolutionMetadata{Error: "notFound"}, nil, DocumentMetadata{}, fmt.Errorf("unknown did method: '%s'", parsed.Method)
 }
