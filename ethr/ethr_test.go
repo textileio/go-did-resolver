@@ -47,8 +47,6 @@ type TestSuite struct {
 	Delegate2  *ecdsa.PrivateKey
 }
 
-// Make sure that VariableThatShouldStartAtFive is set to five
-// before each test
 func (suite *TestSuite) SetupTest() {
 	// Setup simulated block chain
 	key, err := crypto.GenerateKey()

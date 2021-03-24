@@ -126,6 +126,8 @@ func (r *Resolver) Resolve(did string, parsed *did.DID, res resolver.Resolver) (
 	return wrapDocument(did, controller, publicKey, history, r.chainID)
 }
 
+var _ resolver.Resolver = (*Resolver)(nil)
+
 // EthereumDIDRegistryDIDEventUnion represents any of the available DIDRegistry
 // event types: *OwnerChanged, *DelegateChanged, *AttributeChange
 type EthereumDIDRegistryDIDEventUnion struct {
