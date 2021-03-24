@@ -15,7 +15,6 @@ import (
 )
 
 func TestDeployDIDRegistryAndQuery(t *testing.T) {
-
 	// Setup simulated block chain
 	key, err := crypto.GenerateKey()
 	if err != nil {
@@ -55,8 +54,8 @@ func TestDeployDIDRegistryAndQuery(t *testing.T) {
 	}
 }
 
-func TestLiveAndQuery(t *testing.T) {
-	conn, err := ethclient.Dial("https://rinkeby.infura.io/v3/ca30ba98858d47b4adfa22256f13e6f6")
+func DontTestLiveExample(t *testing.T) {
+	conn, err := ethclient.Dial("https://rinkeby.infura.io/v3/blah")
 	if err != nil {
 		t.Error(err)
 	}
@@ -68,12 +67,12 @@ func TestLiveAndQuery(t *testing.T) {
 		t.Error(err)
 	}
 
-	carsonAddr := "0x53e448B7A37bE85f7D6A63d83eEcBb3a5c350471"
+	randomAddr := "0x53e448B7A37bE85f7D6A63d83eEcBb3a5c350471"
 	opts := &bind.CallOpts{
-		From: common.HexToAddress(carsonAddr),
+		From: common.HexToAddress(randomAddr),
 	}
 
-	addr, err := contract.IdentityOwner(opts, common.HexToAddress(carsonAddr))
+	addr, err := contract.IdentityOwner(opts, common.HexToAddress(randomAddr))
 	if err != nil {
 		t.Error(err)
 	}
@@ -81,7 +80,7 @@ func TestLiveAndQuery(t *testing.T) {
 		t.Fatalf("Not a valid Ethereum address: %s", addr.Hex())
 	}
 
-	if addr.Hex() != carsonAddr {
+	if addr.Hex() != randomAddr {
 		t.Fatalf("Unexpected owner address: %s", addr.Hex())
 	}
 }
