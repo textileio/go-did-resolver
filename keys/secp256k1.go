@@ -15,8 +15,10 @@ import (
 func ExpandSecp256k1Key(bytes []byte, fingerprint string) (*resolver.Document, error) {
 	did := fmt.Sprintf("did:key:%s", fingerprint)
 	keyID := fmt.Sprintf("%s#%s", did, fingerprint)
-	// No error checking here, because we're using mbase consts directly.
-	keyMultiBase, _ := mbase.Encode(mbase.Base16, bytes)
+	keyMultiBase, err := mbase.Encode(mbase.Base16, bytes)
+	if err != nil {
+		return nil, err
+	}
 	doc := &resolver.Document{
 		Context: []string{"https://w3id.org/did/v1"},
 		ID:      did,
@@ -29,6 +31,5 @@ func ExpandSecp256k1Key(bytes []byte, fingerprint string) (*resolver.Document, e
 			},
 		},
 	}
-	// Leaving possible error return gere in case we need it in the future
 	return doc, nil
 }

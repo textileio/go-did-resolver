@@ -96,7 +96,10 @@ func (doc *DocID) Bytes() []byte {
 
 func (doc *DocID) String() string {
 	bytes := doc.Bytes()
-	encoded, _ := mbase.Encode(mbase.Base36, bytes)
+	encoded, err := mbase.Encode(mbase.Base36, bytes)
+	if err != nil {
+		return ""
+	}
 	return encoded
 }
 
@@ -133,7 +136,10 @@ func (doc *CommitID) Bytes() []byte {
 
 func (doc *CommitID) String() string {
 	bytes := doc.Bytes()
-	encoded, _ := mbase.Encode(mbase.Base36, bytes)
+	encoded, err := mbase.Encode(mbase.Base36, bytes)
+	if err != nil {
+		return ""
+	}
 	return encoded
 }
 

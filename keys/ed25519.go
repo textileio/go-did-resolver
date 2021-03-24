@@ -22,9 +22,10 @@ func encodeEd25519PublicKey(key []byte) (string, error) {
 	prefix := varint.ToUvarint(uint64(codec.X25519Pub))
 	bytes := append(prefix, key...)
 	// The spec specifies base58 btc...
-	// No error checking here, because we're using mbase consts directly.
-	str, _ := mbase.Encode(mbase.Base58BTC, bytes)
-	// Leaving possible error return gere in case we need it in the future
+	str, err := mbase.Encode(mbase.Base58BTC, bytes)
+	if err != nil {
+		return "", err
+	}
 	return str, nil
 }
 
@@ -32,14 +33,20 @@ func encodeEd25519PublicKey(key []byte) (string, error) {
 func ExpandEd25519Key(bytes []byte, fingerprint string) (*resolver.Document, error) {
 	did := fmt.Sprintf("did:key:%s", fingerprint)
 	keyID := fmt.Sprintf("%s#%s", did, fingerprint)
-	// No error checking here, because we're using mbase consts directly.
-	keyMultiBase, _ := mbase.Encode(mbase.Base58BTC, bytes)
+	keyMultiBase, err := mbase.Encode(mbase.Base58BTC, bytes)
+	if err != nil {
+		return nil, err
+	}
 	x25519Bytes := ed2curve25519.Ed25519PublicKeyToCurve25519(bytes)
-	// No error checking here, because we're using mbase consts directly.
-	x25519Encoded, _ := encodeEd25519PublicKey(x25519Bytes)
+	x25519Encoded, err := encodeEd25519PublicKey(x25519Bytes)
+	if err != nil {
+		return nil, err
+	}
 	x25519ID := fmt.Sprintf("%s#%s", did, x25519Encoded)
-	// No error checking here, because we're using mbase consts directly.
-	x25519MultiBase, _ := mbase.Encode(mbase.Base58BTC, x25519Bytes)
+	x25519MultiBase, err := mbase.Encode(mbase.Base58BTC, x25519Bytes)
+	if err != nil {
+		return nil, err
+	}
 	doc := &resolver.Document{
 		Context: []string{"https://w3id.org/did/v1"},
 		ID:      did,
@@ -60,6 +67,5 @@ func ExpandEd25519Key(bytes []byte, fingerprint string) (*resolver.Document, err
 			},
 		},
 	}
-	// Leaving possible error return gere in case we need it in the future
 	return doc, nil
 }

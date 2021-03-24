@@ -93,7 +93,10 @@ func resolve(client Client, id string, commit cid.Cid) (*resolver.Document, erro
 		if n != 2 {
 			return nil, fmt.Errorf("error parsing varint")
 		}
-		publicKeyBase58, _ := multibase.Encode(multibase.Base58BTC, keyBuf[2:])
+		publicKeyBase58, err := multibase.Encode(multibase.Base58BTC, keyBuf[2:])
+		if err != nil {
+			return nil, err
+		}
 		keyID := fmt.Sprintf("%s#%s", did, keyName)
 		switch keyType {
 		case uint64(codec.Secp256k1Pub):
@@ -139,13 +142,5 @@ func getVersion(query string) string {
 	}
 	return ""
 }
-
-// func wrapDocument(doc *resolver.Document, did string) (*resolver.Document, error) {
-// 	// Ceramic uses publicKeys
-// 	// See https://w3c.github.io/did-spec-registries/#publickey
-// 	if (content.)
-// 	return nil, nil
-
-// }
 
 var _ resolver.Resolver = (*Resolver)(nil)
