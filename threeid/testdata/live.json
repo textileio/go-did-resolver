@@ -20,7 +20,9 @@
   "authentication": [
     {
       "type": "Secp256k1SignatureAuthentication2018",
-      "publicKey": "did:3:kjzl6cwe1jw148t9pgxvoty45b02rztk3f9zaf45d5yxwarikwgrds8rcke8uuv#PC6zECfZzabtrWj"
+      "id": "did:3:kjzl6cwe1jw148t9pgxvoty45b02rztk3f9zaf45d5yxwarikwgrds8rcke8uuv#PC6zECfZzabtrWj",
+      "controller": "did:3:kjzl6cwe1jw148t9pgxvoty45b02rztk3f9zaf45d5yxwarikwgrds8rcke8uuv",
+      "publicKeyMultibase": "zyVS5scz6HonoHLqLAztzEAC9QShAZq9a4JSsGeuUgNf1"
     }
   ],
   "keyAgreement": [

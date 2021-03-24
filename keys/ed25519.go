@@ -48,22 +48,21 @@ func ExpandEd25519Key(bytes []byte, fingerprint string) (*resolver.Document, err
 		return nil, err
 	}
 	doc := &resolver.Document{
-		Context: []string{"https://w3id.org/did/v1"},
-		ID:      did,
-		Authentication: []resolver.VerificationMethod{
-			{
-				ID:                 keyID,
-				Type:               "Ed25519VerificationKey2018",
-				Controller:         did,
-				PublicKeyMultibase: keyMultiBase,
-			},
-		},
+		Context:        []string{"https://w3id.org/did/v1"},
+		ID:             did,
+		Authentication: []string{keyID},
 		VerificationMethod: []resolver.VerificationMethod{
 			{
 				ID:                 x25519ID,
 				Type:               "X25519KeyAgreementKey2019",
 				Controller:         did,
 				PublicKeyMultibase: x25519MultiBase,
+			},
+			{
+				ID:                 keyID,
+				Type:               "Ed25519VerificationKey2018",
+				Controller:         did,
+				PublicKeyMultibase: keyMultiBase,
 			},
 		},
 	}

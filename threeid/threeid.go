@@ -106,10 +106,7 @@ func resolve(client Client, id string, commit cid.Cid) (*resolver.Document, erro
 				Controller:         did,
 				PublicKeyMultibase: publicKeyBase58,
 			})
-			doc.Authentication = append(doc.Authentication, resolver.VerificationMethod{
-				Type:      "Secp256k1SignatureAuthentication2018",
-				PublicKey: keyID,
-			})
+			doc.Authentication = append(doc.Authentication, keyID)
 		case uint64(codec.X25519Pub):
 			// Old key format, likely not needed in the future
 			doc.VerificationMethod = append(doc.VerificationMethod, resolver.VerificationMethod{

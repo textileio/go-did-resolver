@@ -4,7 +4,9 @@
   ],
   "authentication": [
     {
-      "publicKey": "did:3:k2t6wyfsu4pg0t2n4j8ms3s33xsgqjhtto04mvq8w5a2v5xo48idyz38l7ydki#8VBUiUTCeHbTeTV",
+      "controller": "did:3:k2t6wyfsu4pg0t2n4j8ms3s33xsgqjhtto04mvq8w5a2v5xo48idyz38l7ydki",
+      "id": "did:3:k2t6wyfsu4pg0t2n4j8ms3s33xsgqjhtto04mvq8w5a2v5xo48idyz38l7ydki#8VBUiUTCeHbTeTV",
+      "publicKeyMultibase": "z2Bv3fQSJiGJsbUUfUdiPsXXZGG5cXqaSeYnieuJcUFAbm",
       "type": "Secp256k1SignatureAuthentication2018"
     }
   ],

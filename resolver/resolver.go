@@ -20,9 +20,10 @@ type Document struct {
 	ID                 string               `json:"id"`
 	Controller         []string             `json:"controller,omitempty"`
 	VerificationMethod []VerificationMethod `json:"verificationMethod,omitempty"`
-	Authentication     []VerificationMethod `json:"authentication,omitempty"`
+	Authentication     []string             `json:"authentication,omitempty"`
 	KeyAgreement       []VerificationMethod `json:"keyAgreement,omitempty"`
 	Service            []ServiceEndpoint    `json:"service,omitempty"`
+	Deactivated        bool                 `json:"deactivated,omitempty"`
 }
 
 // ServiceEndpoint descrives a network address, such as an http url, at which services operate on behalf of a did subject.
@@ -36,12 +37,14 @@ type ServiceEndpoint struct {
 
 // VerificationMethod describes how to authenticate or authorize interactions with a did subject.
 // See https://www.w3.org/TR/did-core/#dfn-verification-method.
+// See also https://w3c.github.io/did-spec-registries/#verification-method-properties
 type VerificationMethod struct {
-	ID                 string `json:"id,omitempty"`
-	Type               string `json:"type,omitempty"`
-	Controller         string `json:"controller,omitempty"`
-	PublicKeyMultibase string `json:"publicKeyMultibase,omitempty"`
-	PublicKey          string `json:"publicKey,omitempty"`
+	ID                  string `json:"id,omitempty"`
+	Type                string `json:"type,omitempty"`
+	Controller          string `json:"controller,omitempty"`
+	PublicKeyMultibase  string `json:"publicKeyMultibase,omitempty"`
+	PublicKeyPem        string `json:"publicKeyPem,omitempty"`
+	BlockchainAccountID string `json:"blockchainAccountId,omitempty"`
 }
 
 // VerificationString describes how to authenticate or authorize interactions with a did subject.
