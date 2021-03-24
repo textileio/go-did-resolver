@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/ockam-network/did"
@@ -54,9 +55,15 @@ func (r *Resolver) Resolve(did string, parsed *did.DID, res resolver.Resolver) (
 		return nil, fmt.Errorf("unknown did method: '%s'", parsed.Method)
 	}
 	path := parsed.ID + DocPath
-	id := strings.Split(parsed.ID, ":")
-	if len(id) > 1 {
-		path = strings.Join(id, "/") + "/did.json"
+	parts := parsed.IDStrings
+	if len(parts) > 1 {
+		_, err := strconv.Atoi(parts[1])
+		if err == nil { // Probably a port number
+			path = strings.Join(append([]string{parts[0] + ":" + parts[1]}, parts[2:]...), "/") + DocPath
+		} else {
+			path = strings.Join(parts, "/") + DocPath
+		}
+
 	}
 	url := "https://" + path
 	resp, err := Client.Get(url)
@@ -76,7 +83,8 @@ func (r *Resolver) Resolve(did string, parsed *did.DID, res resolver.Resolver) (
 	if err != nil {
 		return nil, err
 	}
-	if state.ID != did {
+	// Ignores query params and things in the did url
+	if state.ID != fmt.Sprintf("did:web:%s", parsed.ID) {
 		return nil, fmt.Errorf("id does not match requested did")
 	}
 	if len(state.VerificationMethod) < 1 {
