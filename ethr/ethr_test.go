@@ -1,20 +1,32 @@
+// Package ether provides tools for resolving the did:ether format, for
+// resolving ethereum addresses as did documents.
+// This resolver takes an ethereum address, checks for the current controller,
+// looks at contract events, and builds a simple did document.
+// Copyright 2021 Textile
+// Copyright 2018 Consensys AG
+
 package ethr
 
 // Basic imports
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"log"
 	"math/big"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/multiformats/go-multibase"
 	"github.com/ockam-network/did"
 	"github.com/stretchr/testify/suite"
@@ -27,9 +39,6 @@ var (
 	blockchain *backends.SimulatedBackend
 )
 
-// Define the suite, and absorb the built-in basic suite
-// functionality from testify - including a T() method which
-// returns the current testing context
 type TestSuite struct {
 	suite.Suite
 	Identity   *ecdsa.PrivateKey
@@ -40,7 +49,7 @@ type TestSuite struct {
 
 // Make sure that VariableThatShouldStartAtFive is set to five
 // before each test
-func (suite *TestSuite) SetupSuite() {
+func (suite *TestSuite) SetupTest() {
 	// Setup simulated block chain
 	key, err := crypto.GenerateKey()
 	if err != nil {
@@ -201,8 +210,6 @@ func (suite *TestSuite) TestRejectInvalid() {
 	_, err = r.Resolve(id, parsed, r)
 	suite.EqualErrorf(err, fmt.Sprintf("not a valid ethr did: %s", id), "Error message not equal")
 }
-
-// TODO: Write a test that validates which network we're prepared to resolve on?
 
 func (suite *TestSuite) TestController() {
 	// Setup
@@ -575,17 +582,9 @@ func (suite *TestSuite) TestAttributes() {
 
 	r := New(blockchain, blockchain.Blockchain().Config().ChainID)
 
-	// delegate1Key := suite.Delegate1.Public()
-	// delegate1ECDSA, _ := delegate1Key.(*ecdsa.PublicKey)
-	// delegate1Address := crypto.PubkeyToAddress(*delegate1ECDSA)
-
-	// delegate2Key := suite.Delegate2.Public()
-	// delegate2ECDSA, _ := delegate2Key.(*ecdsa.PublicKey)
-	// delegate2Address := crypto.PubkeyToAddress(*delegate2ECDSA)
-
 	suite.Run("AddPublicKey", func() {
 		// TODO: I don't think we should have to ajust to unix time for these validTo values
-		validity := big.NewInt(0).Add(big.NewInt(time.Now().Unix()), big.NewInt(50))
+		validity := big.NewInt(0).Add(big.NewInt(time.Now().Unix()), big.NewInt(1000))
 		var name [32]byte
 		copy(name[:], "did/pub/Secp256k1/veriKey")
 		_, err = registry.SetAttribute(auth, fromAddress, name, []byte("0x02b97c30de767f084ce3080168ee293053ba33b235d7116a3263d29f1450936b71"), validity)
@@ -629,7 +628,7 @@ func (suite *TestSuite) TestAttributes() {
 	suite.Run("ResolveEd25519VerificationKey", func() {
 		auth.Nonce = auth.Nonce.Add(auth.Nonce, big.NewInt(1))
 		// TODO: I don't think we should have to ajust to unix time for these validTo values
-		validity := big.NewInt(0).Add(big.NewInt(time.Now().Unix()), big.NewInt(50))
+		validity := big.NewInt(0).Add(big.NewInt(time.Now().Unix()), big.NewInt(1000))
 		var name [32]byte
 		copy(name[:], "did/pub/Ed25519/veriKey/base64")
 		_, err = registry.SetAttribute(auth, fromAddress, name, []byte("0x02b97c30de767f084ce3080168ee293053ba33b235d7116a3263d29f1450936b71"), validity)
@@ -679,7 +678,7 @@ func (suite *TestSuite) TestAttributes() {
 	suite.Run("ResolveRSAVerificationKey2018", func() {
 		auth.Nonce = auth.Nonce.Add(auth.Nonce, big.NewInt(1))
 		// TODO: I don't think we should have to ajust to unix time for these validTo values
-		validity := big.NewInt(0).Add(big.NewInt(time.Now().Unix()), big.NewInt(50))
+		validity := big.NewInt(0).Add(big.NewInt(time.Now().Unix()), big.NewInt(10000))
 		var name [32]byte
 		copy(name[:], "did/pub/RSA/veriKey/pem")
 		_, err = registry.SetAttribute(auth, fromAddress, name, []byte("-----BEGIN PUBLIC KEY...END PUBLIC KEY-----\r\n"), validity)
@@ -732,12 +731,10 @@ func (suite *TestSuite) TestAttributes() {
 		suite.Equal(expected, observed)
 	})
 
-	// TODO: Write test for resolving X25519KeyAgreementKey2019
-
 	suite.Run("Add Service Endpoint", func() {
 		auth.Nonce = auth.Nonce.Add(auth.Nonce, big.NewInt(1))
 		// TODO: I don't think we should have to ajust to unix time for these validTo values
-		validity := big.NewInt(0).Add(big.NewInt(time.Now().Unix()), big.NewInt(50))
+		validity := big.NewInt(0).Add(big.NewInt(time.Now().Unix()), big.NewInt(1000))
 		var name [32]byte
 		copy(name[:], "did/svc/HubService")
 		encodedEndpoint := []byte(hex.EncodeToString([]byte("https://hub.textile.io")))
@@ -797,11 +794,504 @@ func (suite *TestSuite) TestAttributes() {
 		}
 		suite.Equal(expected, observed)
 	})
+
+	suite.Run("ResolveX25519KeyAgreementKey2019", func() {
+		auth.Nonce = auth.Nonce.Add(auth.Nonce, big.NewInt(1))
+		// TODO: I don't think we should have to ajust to unix time for these validTo values
+		validity := big.NewInt(0).Add(big.NewInt(time.Now().Unix()), big.NewInt(1000))
+		var name [32]byte
+		copy(name[:], "did/pub/X25519/enc/base64")
+		base64String := "MCowBQYDK2VuAyEAEYVXd3/7B4d0NxpSsA/tdVYdz5deYcR1U+ZkphdmEFI"
+		keyAgreement, err := base64.RawStdEncoding.DecodeString(base64String)
+		suite.NoError(err)
+		encodedKey := []byte(hex.EncodeToString(keyAgreement))
+		_, err = registry.SetAttribute(auth, fromAddress, name, encodedKey, validity)
+		suite.NoError(err)
+
+		// Commit all pending transactions
+		blockchain.Commit()
+
+		id := fmt.Sprintf("did:ethr:dev:%s", fromAddress.Hex())
+		parsed, err := did.Parse(id)
+		suite.NoError(err)
+
+		observed, err := r.Resolve(id, parsed, r)
+		suite.NoError(err)
+
+		// TODO: Should we expect this to go into the keyAgreement field?
+		expected := &resolver.Document{
+			Context: []string{
+				"https://w3id.org/did/v1",
+				"https://identity.foundation/EcdsaSecp256k1RecoverySignature2020/lds-ecdsa-secp256k1-recovery2020-0.0.jsonld",
+			},
+			ID: id,
+			VerificationMethod: []resolver.VerificationMethod{
+				{
+					ID:                  fmt.Sprintf("%s#controller", id),
+					Type:                "EcdsaSecp256k1RecoveryMethod2020",
+					Controller:          id,
+					BlockchainAccountID: fmt.Sprintf("%s@eip155:1337", fromAddress.Hex()),
+				},
+				{
+					ID:                 fmt.Sprintf("%s#delegate-1", id),
+					Type:               "EcdsaSecp256k1VerificationKey2019",
+					Controller:         id,
+					PublicKeyMultibase: "f02b97c30de767f084ce3080168ee293053ba33b235d7116a3263d29f1450936b71",
+				},
+				{
+					ID:                 fmt.Sprintf("%s#delegate-2", id),
+					Type:               "Ed25519VerificationKey2018",
+					Controller:         id,
+					PublicKeyMultibase: "mArl8MN52fwhM4wgBaO4pMFO6M7I11xFqMmPSnxRQk2tx",
+				},
+				{
+					ID:           fmt.Sprintf("%s#delegate-3", id),
+					Type:         "RSAVerificationKey2018",
+					Controller:   id,
+					PublicKeyPem: "-----BEGIN PUBLIC KEY...END PUBLIC KEY-----\r\n",
+				},
+				{
+					ID:                 fmt.Sprintf("%s#delegate-4", id),
+					Type:               "X25519KeyAgreementKey2019",
+					Controller:         id,
+					PublicKeyMultibase: "m" + base64String,
+				},
+			},
+			Authentication: []string{fmt.Sprintf("%s#controller", id)},
+			Service: []resolver.ServiceEndpoint{
+				{
+					ID:              fmt.Sprintf("%s#service-1", id),
+					Type:            "HubService",
+					ServiceEndpoint: "https://hub.textile.io",
+				},
+			},
+		}
+		suite.Equal(expected, observed)
+	})
+
+	// Revokation
+	suite.Run("RevokePublicKey", func() {
+		auth.Nonce = auth.Nonce.Add(auth.Nonce, big.NewInt(1))
+		var name [32]byte
+		copy(name[:], "did/pub/Secp256k1/veriKey")
+		encodedKey := []byte("0x02b97c30de767f084ce3080168ee293053ba33b235d7116a3263d29f1450936b71")
+		_, err = registry.RevokeAttribute(auth, fromAddress, name, encodedKey)
+		suite.NoError(err)
+
+		// Commit all pending transactions
+		blockchain.Commit()
+
+		id := fmt.Sprintf("did:ethr:dev:%s", fromAddress.Hex())
+		parsed, err := did.Parse(id)
+		suite.NoError(err)
+
+		observed, err := r.Resolve(id, parsed, r)
+		suite.NoError(err)
+
+		// TODO: Should we expect this to go into the keyAgreement field?
+		expected := &resolver.Document{
+			Context: []string{
+				"https://w3id.org/did/v1",
+				"https://identity.foundation/EcdsaSecp256k1RecoverySignature2020/lds-ecdsa-secp256k1-recovery2020-0.0.jsonld",
+			},
+			ID: id,
+			VerificationMethod: []resolver.VerificationMethod{
+				{
+					ID:                  fmt.Sprintf("%s#controller", id),
+					Type:                "EcdsaSecp256k1RecoveryMethod2020",
+					Controller:          id,
+					BlockchainAccountID: fmt.Sprintf("%s@eip155:1337", fromAddress.Hex()),
+				},
+				{
+					ID:                 fmt.Sprintf("%s#delegate-2", id),
+					Type:               "Ed25519VerificationKey2018",
+					Controller:         id,
+					PublicKeyMultibase: "mArl8MN52fwhM4wgBaO4pMFO6M7I11xFqMmPSnxRQk2tx",
+				},
+				{
+					ID:           fmt.Sprintf("%s#delegate-3", id),
+					Type:         "RSAVerificationKey2018",
+					Controller:   id,
+					PublicKeyPem: "-----BEGIN PUBLIC KEY...END PUBLIC KEY-----\r\n",
+				},
+				{
+					ID:                 fmt.Sprintf("%s#delegate-4", id),
+					Type:               "X25519KeyAgreementKey2019",
+					Controller:         id,
+					PublicKeyMultibase: "mMCowBQYDK2VuAyEAEYVXd3/7B4d0NxpSsA/tdVYdz5deYcR1U+ZkphdmEFI",
+				},
+			},
+			Authentication: []string{fmt.Sprintf("%s#controller", id)},
+			Service: []resolver.ServiceEndpoint{
+				{
+					ID:              fmt.Sprintf("%s#service-1", id),
+					Type:            "HubService",
+					ServiceEndpoint: "https://hub.textile.io",
+				},
+			},
+		}
+		suite.Equal(expected, observed)
+	})
+
+	suite.Run("RevokeEd25519VerificationKey2018", func() {
+		auth.Nonce = auth.Nonce.Add(auth.Nonce, big.NewInt(1))
+		var name [32]byte
+		copy(name[:], "did/pub/Ed25519/veriKey/base64")
+		encodedKey := []byte("0x02b97c30de767f084ce3080168ee293053ba33b235d7116a3263d29f1450936b71")
+		_, err = registry.RevokeAttribute(auth, fromAddress, name, encodedKey)
+		suite.NoError(err)
+
+		// Commit all pending transactions
+		blockchain.Commit()
+
+		id := fmt.Sprintf("did:ethr:dev:%s", fromAddress.Hex())
+		parsed, err := did.Parse(id)
+		suite.NoError(err)
+
+		observed, err := r.Resolve(id, parsed, r)
+		suite.NoError(err)
+
+		// TODO: Should we expect this to go into the keyAgreement field?
+		expected := &resolver.Document{
+			Context: []string{
+				"https://w3id.org/did/v1",
+				"https://identity.foundation/EcdsaSecp256k1RecoverySignature2020/lds-ecdsa-secp256k1-recovery2020-0.0.jsonld",
+			},
+			ID: id,
+			VerificationMethod: []resolver.VerificationMethod{
+				{
+					ID:                  fmt.Sprintf("%s#controller", id),
+					Type:                "EcdsaSecp256k1RecoveryMethod2020",
+					Controller:          id,
+					BlockchainAccountID: fmt.Sprintf("%s@eip155:1337", fromAddress.Hex()),
+				},
+				{
+					ID:           fmt.Sprintf("%s#delegate-3", id),
+					Type:         "RSAVerificationKey2018",
+					Controller:   id,
+					PublicKeyPem: "-----BEGIN PUBLIC KEY...END PUBLIC KEY-----\r\n",
+				},
+				{
+					ID:                 fmt.Sprintf("%s#delegate-4", id),
+					Type:               "X25519KeyAgreementKey2019",
+					Controller:         id,
+					PublicKeyMultibase: "mMCowBQYDK2VuAyEAEYVXd3/7B4d0NxpSsA/tdVYdz5deYcR1U+ZkphdmEFI",
+				},
+			},
+			Authentication: []string{fmt.Sprintf("%s#controller", id)},
+			Service: []resolver.ServiceEndpoint{
+				{
+					ID:              fmt.Sprintf("%s#service-1", id),
+					Type:            "HubService",
+					ServiceEndpoint: "https://hub.textile.io",
+				},
+			},
+		}
+		suite.Equal(expected, observed)
+	})
+
+	suite.Run("RevokeRSAVerificationKey2018", func() {
+		auth.Nonce = auth.Nonce.Add(auth.Nonce, big.NewInt(1))
+		var name [32]byte
+		copy(name[:], "did/pub/RSA/veriKey/pem")
+		encodedKey := []byte("-----BEGIN PUBLIC KEY...END PUBLIC KEY-----\r\n")
+		_, err = registry.RevokeAttribute(auth, fromAddress, name, encodedKey)
+		suite.NoError(err)
+
+		// Commit all pending transactions
+		blockchain.Commit()
+
+		id := fmt.Sprintf("did:ethr:dev:%s", fromAddress.Hex())
+		parsed, err := did.Parse(id)
+		suite.NoError(err)
+
+		observed, err := r.Resolve(id, parsed, r)
+		suite.NoError(err)
+
+		// TODO: Should we expect this to go into the keyAgreement field?
+		expected := &resolver.Document{
+			Context: []string{
+				"https://w3id.org/did/v1",
+				"https://identity.foundation/EcdsaSecp256k1RecoverySignature2020/lds-ecdsa-secp256k1-recovery2020-0.0.jsonld",
+			},
+			ID: id,
+			VerificationMethod: []resolver.VerificationMethod{
+				{
+					ID:                  fmt.Sprintf("%s#controller", id),
+					Type:                "EcdsaSecp256k1RecoveryMethod2020",
+					Controller:          id,
+					BlockchainAccountID: fmt.Sprintf("%s@eip155:1337", fromAddress.Hex()),
+				},
+				{
+					ID:                 fmt.Sprintf("%s#delegate-4", id),
+					Type:               "X25519KeyAgreementKey2019",
+					Controller:         id,
+					PublicKeyMultibase: "mMCowBQYDK2VuAyEAEYVXd3/7B4d0NxpSsA/tdVYdz5deYcR1U+ZkphdmEFI",
+				},
+			},
+			Authentication: []string{fmt.Sprintf("%s#controller", id)},
+			Service: []resolver.ServiceEndpoint{
+				{
+					ID:              fmt.Sprintf("%s#service-1", id),
+					Type:            "HubService",
+					ServiceEndpoint: "https://hub.textile.io",
+				},
+			},
+		}
+		suite.Equal(expected, observed)
+	})
+
+	suite.Run("RevokeServiceEndpoint", func() {
+		auth.Nonce = auth.Nonce.Add(auth.Nonce, big.NewInt(1))
+		var name [32]byte
+		copy(name[:], "did/svc/HubService")
+		encodedEndpoint := []byte(hex.EncodeToString([]byte("https://hub.textile.io")))
+		_, err = registry.RevokeAttribute(auth, fromAddress, name, encodedEndpoint)
+		suite.NoError(err)
+
+		// Commit all pending transactions
+		blockchain.Commit()
+
+		id := fmt.Sprintf("did:ethr:dev:%s", fromAddress.Hex())
+		parsed, err := did.Parse(id)
+		suite.NoError(err)
+
+		observed, err := r.Resolve(id, parsed, r)
+		suite.NoError(err)
+
+		// TODO: Should we expect this to go into the keyAgreement field?
+		expected := &resolver.Document{
+			Context: []string{
+				"https://w3id.org/did/v1",
+				"https://identity.foundation/EcdsaSecp256k1RecoverySignature2020/lds-ecdsa-secp256k1-recovery2020-0.0.jsonld",
+			},
+			ID: id,
+			VerificationMethod: []resolver.VerificationMethod{
+				{
+					ID:                  fmt.Sprintf("%s#controller", id),
+					Type:                "EcdsaSecp256k1RecoveryMethod2020",
+					Controller:          id,
+					BlockchainAccountID: fmt.Sprintf("%s@eip155:1337", fromAddress.Hex()),
+				},
+				{
+					ID:                 fmt.Sprintf("%s#delegate-4", id),
+					Type:               "X25519KeyAgreementKey2019",
+					Controller:         id,
+					PublicKeyMultibase: "mMCowBQYDK2VuAyEAEYVXd3/7B4d0NxpSsA/tdVYdz5deYcR1U+ZkphdmEFI",
+				},
+			},
+			Authentication: []string{fmt.Sprintf("%s#controller", id)},
+		}
+		suite.Equal(expected, observed)
+	})
 }
 
-// TODO: RevokeAttributes
+func (suite *TestSuite) TestMultipleEvents() {
+	// Setup
+	registry, err := contracts.NewEthereumDIDRegistry(ContractAddress, blockchain)
+	if err != nil {
+		suite.NoError(err)
+	}
+	publicKey := suite.Identity.Public()
+	publicKeyECDSA, _ := publicKey.(*ecdsa.PublicKey)
+	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
 
-// TODO: Multiple events in a single block
+	// We need to setup some values for any calls that will update state
+	nonce, err := blockchain.PendingNonceAt(context.Background(), fromAddress)
+	suite.NoError(err)
+	// This will generally return reasonable, fake suggestions, but the process
+	// is the same for the "real world"
+	gasPrice, err := blockchain.SuggestGasPrice(context.Background())
+	suite.NoError(err)
+
+	// We'll setup our new transactor to be our original identity
+	auth := bind.NewKeyedTransactor(suite.Identity)
+	auth.Nonce = big.NewInt(int64(nonce))
+	auth.Value = big.NewInt(0)     // in wei
+	auth.GasLimit = uint64(300000) // in units
+	auth.GasPrice = gasPrice
+
+	r := New(blockchain, blockchain.Blockchain().Config().ChainID)
+
+	suite.Run("TwoServicesInOneBlock", func() {
+		// TODO: I don't think we should have to ajust to unix time for these validTo values
+		validity := big.NewInt(0).Add(big.NewInt(time.Now().Unix()), big.NewInt(1000))
+		var name [32]byte
+		copy(name[:], "did/svc/TestService")
+		encodedEndpoint := []byte(hex.EncodeToString([]byte("https://hub.textile.io")))
+		_, err = registry.SetAttribute(auth, fromAddress, name, encodedEndpoint, validity)
+		suite.NoError(err)
+		// Do it again
+		auth.Nonce = auth.Nonce.Add(auth.Nonce, big.NewInt(1))
+		_, err = registry.SetAttribute(auth, fromAddress, name, encodedEndpoint, validity)
+		suite.NoError(err)
+
+		// Commit all pending transactions
+		blockchain.Commit()
+
+		id := fmt.Sprintf("did:ethr:dev:%s", fromAddress.Hex())
+		parsed, err := did.Parse(id)
+		suite.NoError(err)
+
+		observed, err := r.Resolve(id, parsed, r)
+		suite.NoError(err)
+
+		expected := &resolver.Document{
+			Context: []string{
+				"https://w3id.org/did/v1",
+				"https://identity.foundation/EcdsaSecp256k1RecoverySignature2020/lds-ecdsa-secp256k1-recovery2020-0.0.jsonld",
+			},
+			ID: id,
+			VerificationMethod: []resolver.VerificationMethod{
+				{
+					ID:                  fmt.Sprintf("%s#controller", id),
+					Type:                "EcdsaSecp256k1RecoveryMethod2020",
+					Controller:          id,
+					BlockchainAccountID: fmt.Sprintf("%s@eip155:1337", fromAddress.Hex()),
+				},
+			},
+			Authentication: []string{fmt.Sprintf("%s#controller", id)},
+			Service: []resolver.ServiceEndpoint{
+				{
+					ID:              fmt.Sprintf("%s#service-2", id),
+					Type:            "TestService",
+					ServiceEndpoint: "https://hub.textile.io",
+				},
+			},
+		}
+		suite.Equal(expected, observed)
+	})
+
+	suite.Run("SetAndRevokeInOneBlock", func() {
+		// TODO: I don't think we should have to ajust to unix time for these validTo values
+		validity := big.NewInt(0).Add(big.NewInt(time.Now().Unix()), big.NewInt(1000))
+		name := new([32]byte)
+		copy(name[:], "did/svc/TestService2")
+		// TODO: Figure out how to have these mined in the correct order
+		encodedEndpoint := []byte(hex.EncodeToString([]byte("https://hub.staging.textile.io")))
+		// Undo it
+		auth.Nonce = auth.Nonce.Add(auth.Nonce, big.NewInt(1))
+		_, err = registry.RevokeAttribute(auth, fromAddress, *name, encodedEndpoint)
+		suite.NoError(err)
+		// Do it
+		auth.Nonce = auth.Nonce.Add(auth.Nonce, big.NewInt(1))
+		_, err = registry.SetAttribute(auth, fromAddress, *name, encodedEndpoint, validity)
+		suite.NoError(err)
+
+		// Commit all pending transactions
+		blockchain.Commit()
+
+		id := fmt.Sprintf("did:ethr:dev:%s", fromAddress.Hex())
+		parsed, err := did.Parse(id)
+		suite.NoError(err)
+
+		observed, err := r.Resolve(id, parsed, r)
+		suite.NoError(err)
+
+		expected := &resolver.Document{
+			Context: []string{
+				"https://w3id.org/did/v1",
+				"https://identity.foundation/EcdsaSecp256k1RecoverySignature2020/lds-ecdsa-secp256k1-recovery2020-0.0.jsonld",
+			},
+			ID: id,
+			VerificationMethod: []resolver.VerificationMethod{
+				{
+					ID:                  fmt.Sprintf("%s#controller", id),
+					Type:                "EcdsaSecp256k1RecoveryMethod2020",
+					Controller:          id,
+					BlockchainAccountID: fmt.Sprintf("%s@eip155:1337", fromAddress.Hex()),
+				},
+			},
+			Authentication: []string{fmt.Sprintf("%s#controller", id)},
+			Service: []resolver.ServiceEndpoint{
+				{
+					ID:              fmt.Sprintf("%s#service-2", id),
+					Type:            "TestService",
+					ServiceEndpoint: "https://hub.textile.io",
+				},
+			},
+		}
+		suite.Equal(expected, observed)
+	})
+}
+
+func (suite *TestSuite) TestEdgeCases() {
+	// Setup
+	registry, err := contracts.NewEthereumDIDRegistry(ContractAddress, blockchain)
+	if err != nil {
+		suite.NoError(err)
+	}
+	publicKey := suite.Identity.Public()
+	publicKeyECDSA, _ := publicKey.(*ecdsa.PublicKey)
+	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
+
+	// We need to setup some values for any calls that will update state
+	nonce, err := blockchain.PendingNonceAt(context.Background(), fromAddress)
+	suite.NoError(err)
+	// This will generally return reasonable, fake suggestions, but the process
+	// is the same for the "real world"
+	gasPrice, err := blockchain.SuggestGasPrice(context.Background())
+	suite.NoError(err)
+
+	// We'll setup our new transactor to be our original identity
+	auth := bind.NewKeyedTransactor(suite.Identity)
+	auth.Nonce = big.NewInt(int64(nonce))
+	auth.Value = big.NewInt(0)     // in wei
+	auth.GasLimit = uint64(300000) // in units
+	auth.GasPrice = gasPrice
+
+	r := New(blockchain, blockchain.Blockchain().Config().ChainID)
+
+	suite.Run("DecativateDid", func() {
+		_, err = registry.ChangeOwner(auth, fromAddress, common.Address{})
+		suite.NoError(err)
+
+		// Commit all pending transactions
+		blockchain.Commit()
+
+		id := fmt.Sprintf("did:ethr:dev:%s", fromAddress.Hex())
+		parsed, err := did.Parse(id)
+		suite.NoError(err)
+
+		observed, err := r.Resolve(id, parsed, r)
+		suite.EqualErrorf(err, fmt.Sprintf("deactivated"), "Error message not equal")
+
+		expected := &resolver.Document{
+			Context: []string{
+				"https://w3id.org/did/v1",
+			},
+			ID: id,
+		}
+		suite.Equal(expected, observed)
+	})
+}
+
+func DontTestLiveExample(t *testing.T) {
+	conn, err := ethclient.Dial("https://rinkeby.infura.io/v3/blah")
+	if err != nil {
+		log.Fatalf("Whoops something went wrong: %s", err)
+	}
+
+	pubKey := "0x0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+	pubID := fmt.Sprintf("did:ethr:rinkeby:%s", pubKey)
+
+	parsed, err := did.Parse(pubID)
+	if err != nil {
+		t.Error(err)
+	}
+
+	chainID, err := conn.ChainID(context.Background())
+	client := New(conn, chainID)
+	doc, err := client.Resolve(pubID, parsed, client)
+	if err != nil {
+		t.Error(err)
+	}
+	j, err := json.Marshal(doc)
+	if err != nil {
+		t.Error(err)
+	}
+	fmt.Println(string(j))
+}
 
 // In order for 'go test' to run this suite, we need to create
 // a normal test function and pass our suite to suite.Run

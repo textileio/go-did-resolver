@@ -3,12 +3,7 @@
     "https://w3id.org/did/v1"
   ],
   "authentication": [
-    {
-      "controller": "did:3:k2t6wyfsu4pg0t2n4j8ms3s33xsgqjhtto04mvq8w5a2v5xo48idyz38l7ydki",
-      "id": "did:3:k2t6wyfsu4pg0t2n4j8ms3s33xsgqjhtto04mvq8w5a2v5xo48idyz38l7ydki#8VBUiUTCeHbTeTV",
-      "publicKeyMultibase": "z2Bv3fQSJiGJsbUUfUdiPsXXZGG5cXqaSeYnieuJcUFAbm",
-      "type": "Secp256k1SignatureAuthentication2018"
-    }
+    "did:3:k2t6wyfsu4pg0t2n4j8ms3s33xsgqjhtto04mvq8w5a2v5xo48idyz38l7ydki#8VBUiUTCeHbTeTV"
   ],
   "id": "did:3:k2t6wyfsu4pg0t2n4j8ms3s33xsgqjhtto04mvq8w5a2v5xo48idyz38l7ydki",
   "keyAgreement": [
@@ -19,7 +14,7 @@
       "type": "X25519KeyAgreementKey2019"
     }
   ],
-  "validationMethod": [
+  "verificationMethod": [
     {
       "controller": "did:3:k2t6wyfsu4pg0t2n4j8ms3s33xsgqjhtto04mvq8w5a2v5xo48idyz38l7ydki",
       "id": "did:3:k2t6wyfsu4pg0t2n4j8ms3s33xsgqjhtto04mvq8w5a2v5xo48idyz38l7ydki#8VBUiUTCeHbTeTV",

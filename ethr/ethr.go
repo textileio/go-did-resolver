@@ -1,9 +1,12 @@
-// Package ethr provides tools for resolving the did:ether format, for
+// Package ether provides tools for resolving the did:ether format, for
 // resolving ethereum addresses as did documents.
 // This resolver takes an ethereum address, checks for the current controller,
 // looks at contract events, and builds a simple did document.
 // Copyright 2021 Textile
 // Copyright 2018 Consensys AG
+
+// abigen --abi contracts/ethr-did-registry.json --pkg contracts --out contracts/ethr-did-registry.go
+// abigen --sol contracts/ethr-did-registry.sol --pkg contracts --out contracts/ethr-did-registry.go
 package ethr
 
 import (
@@ -22,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/iancoleman/orderedmap"
 	"github.com/multiformats/go-multibase"
 	"github.com/ockam-network/did"
 
@@ -166,14 +170,15 @@ func wrapDocument(did string, controller *common.Address, publicKey *ecdsa.Publi
 	}
 
 	deactivated := false
-	auths := map[string]string{}
-	pks := map[string]resolver.VerificationMethod{}
-	services := map[string]resolver.ServiceEndpoint{}
+	auths := orderedmap.New()
+	pks := orderedmap.New()
+	services := orderedmap.New()
 	delegateCount := 0
 	serviceCount := 0
 
 	for _, event := range history {
 		validTo := event.ValidTo
+		// fmt.Println(validTo.Uint64(), now.Uint64())
 		if (validTo != nil) && validTo.Cmp(now) >= 0 {
 			switch event.Type {
 			case "DIDDelegateChanged":
@@ -182,15 +187,15 @@ func wrapDocument(did string, controller *common.Address, publicKey *ecdsa.Publi
 				eventIndex := fmt.Sprintf("%s-%s-%s", event.Type, delegateType, event.Delegate.Hex())
 				switch event.DelegateType {
 				case SigAuth:
-					auths[eventIndex] = fmt.Sprintf("%s#delegate-%d", did, delegateCount)
+					auths.Set(eventIndex, fmt.Sprintf("%s#delegate-%d", did, delegateCount))
 					fallthrough
 				case VeriKey:
-					pks[eventIndex] = resolver.VerificationMethod{
+					pks.Set(eventIndex, resolver.VerificationMethod{
 						ID:                  fmt.Sprintf("%s#delegate-%d", did, delegateCount),
 						Type:                "EcdsaSecp256k1RecoveryMethod2020",
 						Controller:          did,
 						BlockchainAccountID: fmt.Sprintf("%s@eip155:%d", event.Delegate, chainID),
-					}
+					})
 				}
 			case "DIDAttributeChanged":
 				attributeName := trimmer.ReplaceAllString(string(event.Name[:]), "")
@@ -257,9 +262,9 @@ func wrapDocument(did string, controller *common.Address, publicKey *ecdsa.Publi
 						default:
 							// TODO: Should we have a default case?
 						}
-						pks[eventIndex] = pk
+						pks.Set(eventIndex, pk)
 						if kind == "sigAuth" {
-							auths[eventIndex] = pk.ID
+							auths.Set(eventIndex, pk.ID)
 						}
 					case "svc":
 						serviceCount++
@@ -267,11 +272,11 @@ func wrapDocument(did string, controller *common.Address, publicKey *ecdsa.Publi
 						if err != nil {
 							return nil, err
 						}
-						services[eventIndex] = resolver.ServiceEndpoint{
+						services.Set(eventIndex, resolver.ServiceEndpoint{
 							ID:              fmt.Sprintf("%s#service-%d", did, serviceCount),
 							Type:            algorithm,
 							ServiceEndpoint: string(keyOrServiceBytes),
-						}
+						})
 					}
 				}
 			}
@@ -290,12 +295,13 @@ func wrapDocument(did string, controller *common.Address, publicKey *ecdsa.Publi
 					serviceCount++
 				}
 			}
-			delete(auths, eventIndex)
-			delete(pks, eventIndex)
-			delete(services, eventIndex)
+			auths.Delete(eventIndex)
+			pks.Delete(eventIndex)
+			services.Delete(eventIndex)
 			if event.Type == "DIDOwnerChanged" {
-				if event.Owner.Hex() == nullAddress {
+				if event.Owner.Hex() == (common.Address{}).Hex() {
 					deactivated = true
+					// TODO: Should we still build up the document?
 					break
 				}
 			}
@@ -315,20 +321,28 @@ func wrapDocument(did string, controller *common.Address, publicKey *ecdsa.Publi
 		doc.Context = []string{
 			"https://w3id.org/did/v1",
 		}
-		doc.Deactivated = true
-		return doc, nil
+		return doc, fmt.Errorf("deactivated")
 	}
-	for _, pk := range pks {
-		verificationMethod = append(verificationMethod, pk)
+	// Sorted pks
+	keys := pks.Keys()
+	for _, k := range keys {
+		v, _ := pks.Get(k)
+		verificationMethod = append(verificationMethod, v.(resolver.VerificationMethod))
 	}
-	for _, auth := range auths {
-		authentication = append(authentication, auth)
+	// Sorted auths
+	keys = auths.Keys()
+	for _, k := range keys {
+		v, _ := auths.Get(k)
+		authentication = append(authentication, v.(string))
 	}
 	doc.Authentication = authentication
 	doc.VerificationMethod = verificationMethod
 
-	for _, service := range services {
-		doc.Service = append(doc.Service, service)
+	// Sorted services
+	keys = services.Keys()
+	for _, k := range keys {
+		v, _ := services.Get(k)
+		doc.Service = append(doc.Service, v.(resolver.ServiceEndpoint))
 	}
 
 	return doc, nil
@@ -361,13 +375,6 @@ func InterpretIdentifier(identifier string) (common.Address, *ecdsa.PublicKey, e
 	}
 	return common.HexToAddress(identifier), nil, nil
 }
-
-// type Event struct {
-// 	PreviousChange *big.Int
-// 	Type string
-// 	Raw
-
-// }
 
 func getLogs(client bind.ContractBackend, address common.Address, previousChange *big.Int) ([]*EthereumDIDRegistryDIDEventUnion, error) {
 	// Leading bytes are used here, because BytesToHash trims from the left

@@ -23,7 +23,6 @@ type Document struct {
 	Authentication     []string             `json:"authentication,omitempty"`
 	KeyAgreement       []VerificationMethod `json:"keyAgreement,omitempty"`
 	Service            []ServiceEndpoint    `json:"service,omitempty"`
-	Deactivated        bool                 `json:"deactivated,omitempty"`
 }
 
 // ServiceEndpoint descrives a network address, such as an http url, at which services operate on behalf of a did subject.
@@ -173,6 +172,9 @@ func (r Registry) Resolve(did string, resolutionOptions *ResolutionOptions) (Res
 			doc, err = resolver.Resolve(parsed.String(), parsed, resolver)
 		}
 		if err != nil {
+			if err.Error() == "deactivated" {
+				return ResolutionMetadata{}, doc, DocumentMetadata{Deactivated: true}, err
+			}
 			return ResolutionMetadata{Error: "invalidDid"}, nil, DocumentMetadata{}, err
 		}
 		if doc == nil {
